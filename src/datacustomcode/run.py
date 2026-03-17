@@ -46,6 +46,8 @@ def run_entrypoint(
     dependencies: List[str],
     profile: str,
     sf_cli_org: Optional[str] = None,
+    models_api_profile: Optional[str] = None,
+    models_api_url: Optional[str] = None,
 ) -> None:
     """Run the entrypoint script with the given config and dependencies.
 
@@ -56,6 +58,10 @@ def run_entrypoint(
         profile: The credentials profile to use.
         sf_cli_org: Optional SF CLI org alias or username. If provided, credentials
             are fetched via `sf org display` instead of from credentials.ini.
+        models_api_profile: Optional credentials profile for the Models API Connected
+            App. If provided, enables ModelsApiProxyClientProvider for real LLM calls.
+        models_api_url: Optional Models API base URL. Only used when
+            models_api_profile is set.
     """
     add_py_folder(entrypoint)
 
@@ -104,6 +110,14 @@ def run_entrypoint(
     elif profile != "default":
         _set_config_option(config.reader_config, "credentials_profile", profile)
         _set_config_option(config.writer_config, "credentials_profile", profile)
+        _set_config_option(config.proxy_config, "credentials_profile", profile)
+
+    if models_api_profile:
+        config.proxy_config.type_config_name = "ModelsApiProxyClientProvider"
+        _set_config_option(config.proxy_config, "credentials_profile", models_api_profile)
+        if models_api_url:
+            _set_config_option(config.proxy_config, "models_api_url", models_api_url)
+
     for dependency in dependencies:
         try:
             importlib.import_module(dependency)

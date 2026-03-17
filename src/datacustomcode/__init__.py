@@ -20,12 +20,16 @@ from datacustomcode.io.writer.print import PrintDataCloudWriter
 from datacustomcode.proxy.client.LocalProxyClientProvider import (
     LocalProxyClientProvider,
 )
+from datacustomcode.proxy.client.ModelsApiProxyClientProvider import (
+    ModelsApiProxyClientProvider,
+)
 
 __all__ = [
     "AuthType",
     "Client",
     "Credentials",
     "LocalProxyClientProvider",
+    "ModelsApiProxyClientProvider",
     "PrintDataCloudWriter",
     "QueryAPIDataCloudReader",
 ]

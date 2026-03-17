@@ -320,15 +320,34 @@ def scan(filename: str, config: str, dry_run: bool, no_requirements: bool):
     default=None,
     help="SF CLI org alias or username. Fetches credentials via `sf org display`.",
 )
+@click.option(
+    "--models-api-profile",
+    default=None,
+    help="Credentials profile for the Models API External Client App. Enables "
+    "real LLM requests for call_llm_gateway.",
+)
+@click.option(
+    "--models-api-url",
+    default=None,
+    help="Models API base URL. Defaults to https://api.salesforce.com.",
+)
 def run(
     entrypoint: str,
     config_file: Union[str, None],
     dependencies: List[str],
     profile: str,
     sf_cli_org: Optional[str],
+    models_api_profile: Optional[str],
+    models_api_url: Optional[str],
 ):
     from datacustomcode.run import run_entrypoint
 
     run_entrypoint(
-        entrypoint, config_file, dependencies, profile, sf_cli_org=sf_cli_org
+        entrypoint,
+        config_file,
+        dependencies,
+        profile,
+        sf_cli_org=sf_cli_org,
+        models_api_profile=models_api_profile,
+        models_api_url=models_api_url,
     )

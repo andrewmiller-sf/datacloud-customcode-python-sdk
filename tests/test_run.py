@@ -4,6 +4,7 @@ import shutil
 import sys
 import tempfile
 import textwrap
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -441,6 +442,122 @@ class TestDataspaceScenarios:
                 )
             assert "missing required field 'dataspace'" in str(exc_info.value)
 
+        finally:
+            if os.path.exists(entrypoint_file):
+                os.unlink(entrypoint_file)
+            if os.path.exists(config_json_path):
+                os.unlink(config_json_path)
+
+
+class TestModelsApiProxyConfig:
+    """Test models_api_profile and models_api_url parameters in run_entrypoint."""
+
+    def _create_entrypoint_and_config(self):
+        """Helper: create a minimal entrypoint + config.json, return paths."""
+        temp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+        temp.write(b"# no-op entrypoint\n")
+        temp.close()
+        entrypoint_file = temp.name
+
+        entrypoint_dir = os.path.dirname(entrypoint_file)
+        config_json_path = os.path.join(entrypoint_dir, "config.json")
+        with open(config_json_path, "w") as f:
+            json.dump({"dataspace": "default"}, f)
+
+        return entrypoint_file, config_json_path
+
+    def test_models_api_profile_sets_proxy_provider(self):
+        """models_api_profile switches proxy to ModelsApiProxyClientProvider."""
+        entrypoint_file, config_json_path = self._create_entrypoint_and_config()
+        try:
+            with patch("datacustomcode.run.runpy.run_path"):
+                run_entrypoint(
+                    entrypoint=entrypoint_file,
+                    config_file=None,
+                    dependencies=[],
+                    profile="default",
+                    models_api_profile="llm-prod",
+                )
+
+            assert (
+                config.proxy_config.type_config_name
+                == "ModelsApiProxyClientProvider"
+            )
+            assert config.proxy_config.options["credentials_profile"] == "llm-prod"
+        finally:
+            # Restore default proxy config
+            config.proxy_config.type_config_name = "LocalProxyClientProvider"
+            config.proxy_config.options.pop("credentials_profile", None)
+            if os.path.exists(entrypoint_file):
+                os.unlink(entrypoint_file)
+            if os.path.exists(config_json_path):
+                os.unlink(config_json_path)
+
+    def test_models_api_url_propagated(self):
+        """models_api_url is set when models_api_profile is also provided."""
+        entrypoint_file, config_json_path = self._create_entrypoint_and_config()
+        try:
+            with patch("datacustomcode.run.runpy.run_path"):
+                run_entrypoint(
+                    entrypoint=entrypoint_file,
+                    config_file=None,
+                    dependencies=[],
+                    profile="default",
+                    models_api_profile="llm-prod",
+                    models_api_url="https://test.api.salesforce.com",
+                )
+
+            assert (
+                config.proxy_config.options["models_api_url"]
+                == "https://test.api.salesforce.com"
+            )
+        finally:
+            config.proxy_config.type_config_name = "LocalProxyClientProvider"
+            config.proxy_config.options.pop("credentials_profile", None)
+            config.proxy_config.options.pop("models_api_url", None)
+            if os.path.exists(entrypoint_file):
+                os.unlink(entrypoint_file)
+            if os.path.exists(config_json_path):
+                os.unlink(config_json_path)
+
+    def test_omitting_models_api_profile_leaves_default_proxy(self):
+        """Without models_api_profile the proxy config stays LocalProxyClientProvider."""
+        entrypoint_file, config_json_path = self._create_entrypoint_and_config()
+        try:
+            with patch("datacustomcode.run.runpy.run_path"):
+                run_entrypoint(
+                    entrypoint=entrypoint_file,
+                    config_file=None,
+                    dependencies=[],
+                    profile="default",
+                )
+
+            assert (
+                config.proxy_config.type_config_name == "LocalProxyClientProvider"
+            )
+        finally:
+            if os.path.exists(entrypoint_file):
+                os.unlink(entrypoint_file)
+            if os.path.exists(config_json_path):
+                os.unlink(config_json_path)
+
+    def test_models_api_url_without_profile_is_ignored(self):
+        """models_api_url alone (no profile) does not change proxy config."""
+        entrypoint_file, config_json_path = self._create_entrypoint_and_config()
+        try:
+            with patch("datacustomcode.run.runpy.run_path"):
+                run_entrypoint(
+                    entrypoint=entrypoint_file,
+                    config_file=None,
+                    dependencies=[],
+                    profile="default",
+                    models_api_url="https://test.api.salesforce.com",
+                )
+
+            assert (
+                config.proxy_config.type_config_name == "LocalProxyClientProvider"
+            )
+            assert "models_api_url" not in config.proxy_config.options
         finally:
             if os.path.exists(entrypoint_file):
                 os.unlink(entrypoint_file)

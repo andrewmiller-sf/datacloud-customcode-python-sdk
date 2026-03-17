@@ -4,7 +4,7 @@ from unittest.mock import mock_open, patch
 
 from click.testing import CliRunner
 
-from datacustomcode.cli import deploy, init
+from datacustomcode.cli import deploy, init, run
 from datacustomcode.deploy import AccessTokenResponse
 from datacustomcode.scan import write_sdk_config
 
@@ -219,3 +219,68 @@ class TestDeploy:
             )
             assert result.exit_code == 1
             assert "sf command not found" in result.output
+
+
+class TestRunCommand:
+    """Test the `run` CLI command passes models-api flags through."""
+
+    @patch("datacustomcode.run.run_entrypoint")
+    def test_models_api_profile_passed_through(self, mock_run_entrypoint):
+        """--models-api-profile value is forwarded to run_entrypoint."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            with open("entrypoint.py", "w") as f:
+                f.write("# stub\n")
+
+            result = runner.invoke(
+                run,
+                ["entrypoint.py", "--models-api-profile", "llm-prod"],
+            )
+
+            assert result.exit_code == 0, result.output
+            mock_run_entrypoint.assert_called_once()
+            call_kwargs = mock_run_entrypoint.call_args
+            assert call_kwargs.kwargs.get("models_api_profile") == "llm-prod"
+
+    @patch("datacustomcode.run.run_entrypoint")
+    def test_models_api_url_passed_through(self, mock_run_entrypoint):
+        """--models-api-url value is forwarded to run_entrypoint."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            with open("entrypoint.py", "w") as f:
+                f.write("# stub\n")
+
+            result = runner.invoke(
+                run,
+                [
+                    "entrypoint.py",
+                    "--models-api-profile",
+                    "llm-prod",
+                    "--models-api-url",
+                    "https://test.api.salesforce.com",
+                ],
+            )
+
+            assert result.exit_code == 0, result.output
+            mock_run_entrypoint.assert_called_once()
+            call_kwargs = mock_run_entrypoint.call_args
+            assert (
+                call_kwargs.kwargs.get("models_api_url")
+                == "https://test.api.salesforce.com"
+            )
+
+    @patch("datacustomcode.run.run_entrypoint")
+    def test_omitting_both_flags_passes_none(self, mock_run_entrypoint):
+        """Omitting both flags passes None for models_api_profile and models_api_url."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            with open("entrypoint.py", "w") as f:
+                f.write("# stub\n")
+
+            result = runner.invoke(run, ["entrypoint.py"])
+
+            assert result.exit_code == 0, result.output
+            mock_run_entrypoint.assert_called_once()
+            call_kwargs = mock_run_entrypoint.call_args
+            assert call_kwargs.kwargs.get("models_api_profile") is None
+            assert call_kwargs.kwargs.get("models_api_url") is None
